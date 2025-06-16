@@ -1,32 +1,58 @@
 #include "common.h"
+#include <stddef.h>
+#include <stdio.h>
 
-/* Address Info */
-void address() {
-  struct addrinfo hints;
-  struct addrinfo *info;
-  int ret;
-  char ipstr[14];
+typedef struct {
+  FILE *fp;
+  char *fbuffer;
+  size_t fsize;
+} FileInfo;
 
-  memset(&hints, 0, sizeof hints);
+FileInfo *read_file(const char *file_name) {
+  FileInfo *f = malloc(sizeof(FileInfo));
 
-  hints.ai_protocol = 0;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_family = AF_INET;
+  f->fp = fopen(file_name, "rb");
 
-  ret = getaddrinfo("127.0.0.1", "621", &hints, &info);
-  if (ret != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
-    exit(1);
+  if (f->fp == NULL)
+    error("ERROR opening file");
+
+  if (fseek(f->fp, 0, SEEK_END) < 0)
+    error("ERROR seeking file");
+
+  long ret = ftell(f->fp);
+  rewind(f->fp);
+
+  f->fsize = ret + 1;
+
+  f->fbuffer = malloc(f->fsize);
+  if (f->fbuffer == NULL)
+    error("ERROR allocating memory");
+
+  size_t size = fread(f->fbuffer, 1, ret, f->fp);
+  if (size <= 0) {
+    error("ERROR on fread");
   }
 
-  // get the first address returned by getaddrinfo()
-  struct sockaddr_in *ipv4 = (struct sockaddr_in *)info->ai_addr;
-  inet_ntop(AF_INET, &ipv4->sin_addr.s_addr, ipstr, sizeof(ipstr));
+  f->fbuffer[size] = '\0';
 
-  // print IP address of client
-  printf("%s\n", ipstr);
+  fclose(f->fp);
 
-  freeaddrinfo(info);
+  return f;
+}
+
+/* serve files one by one, one at a time */
+void serve_file(int client_fd, const char *file_name) {
+  FileInfo *f = read_file(file_name);
+
+  size_t ret = write(client_fd, f->fbuffer, f->fsize);
+  if (ret < 0) {
+    error("ERROR writing file");
+    free(f->fbuffer);
+    free(f);
+  }
+
+  free(f->fbuffer);
+  free(f);
 }
 
 /* Configure Server Socket */
@@ -44,52 +70,6 @@ void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
     error("ERROR listening for connections");
 }
 
- /*Communicate with a client connection */
-void talk_client(int client_fd) {
-  char buf[BUFSIZ];
-  int ret;
-
-  // send rules to client
-  bzero(buf, BUFSIZ);
-  char msg[] = "Press 'Ctrl + ]' to end the conversation\r\n";
-  ret = write(client_fd, msg, sizeof(msg));
-  if (ret < 0)
-    error("client did not get the rules");
-
-  while (1) {
-    int pos = 0;
-
-    // read from client
-    bzero(buf, BUFSIZ);
-    while (pos < BUFSIZ - 1) {
-      ret = read(client_fd, &buf[pos], 1);
-      if (ret < 0)
-        error("ERROR reading from socket");
-      if (buf[pos] == '\0') // newline
-        break;
-      ++pos;
-    }
-
-    // exit condition
-    if (pos == 2 && buf[0] == '\035') {
-      printf("terminating conversation...\n");
-      return;
-    }
-
-    // output client message
-    printf("prayer: %s", buf);
-
-    // send a reply back to the client
-    bzero(buf, BUFSIZ);
-    strcpy(buf, "hello darkness my old friend\r\n");
-    ret = write(client_fd, buf, strlen(buf) + 1);
-    if (ret < 0)
-      error("ERROR writing to client");
-  }
-
-  return;
-}
-
 /* Accept connections */
 void server_accept(int server_fd) {
   char buf[BUFSIZ];
@@ -103,8 +83,10 @@ void server_accept(int server_fd) {
   if (client_fd < 0)
     error("ERROR accepting connections");
 
-  // get stream rather than block
-  talk_client(client_fd);
+  // serve a HTML file to the clients that try to connect with the server
+  serve_file(client_fd, "index.html");
+
+  printf("after serving file...");
 
   // close the connection
   shutdown(client_fd, SHUT_RDWR);

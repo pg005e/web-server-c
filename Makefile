@@ -15,5 +15,8 @@ common.o: common.c
 client: client.c
 	$(CC) -o client client.c
 
+test: test.c
+	$(CC) -o test test.c
+
 clean:
 	rm -f *.o
