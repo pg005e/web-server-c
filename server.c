@@ -1,59 +1,6 @@
 #include "common.h"
-#include <stddef.h>
-#include <stdio.h>
-
-typedef struct {
-  FILE *fp;
-  char *fbuffer;
-  size_t fsize;
-} FileInfo;
-
-FileInfo *read_file(const char *file_name) {
-  FileInfo *f = malloc(sizeof(FileInfo));
-
-  f->fp = fopen(file_name, "rb");
-
-  if (f->fp == NULL)
-    error("ERROR opening file");
-
-  if (fseek(f->fp, 0, SEEK_END) < 0)
-    error("ERROR seeking file");
-
-  long ret = ftell(f->fp);
-  rewind(f->fp);
-
-  f->fsize = ret + 1;
-
-  f->fbuffer = malloc(f->fsize);
-  if (f->fbuffer == NULL)
-    error("ERROR allocating memory");
-
-  size_t size = fread(f->fbuffer, 1, ret, f->fp);
-  if (size <= 0) {
-    error("ERROR on fread");
-  }
-
-  f->fbuffer[size] = '\0';
-
-  fclose(f->fp);
-
-  return f;
-}
-
-/* serve files one by one, one at a time */
-void serve_file(int client_fd, const char *file_name) {
-  FileInfo *f = read_file(file_name);
-
-  size_t ret = write(client_fd, f->fbuffer, f->fsize);
-  if (ret < 0) {
-    error("ERROR writing file");
-    free(f->fbuffer);
-    free(f);
-  }
-
-  free(f->fbuffer);
-  free(f);
-}
+#include "file.h"
+#include <unistd.h>
 
 /* Configure Server Socket */
 void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
@@ -86,10 +33,9 @@ void server_accept(int server_fd) {
   // serve a HTML file to the clients that try to connect with the server
   serve_file(client_fd, "index.html");
 
-  printf("after serving file...");
-
   // close the connection
   shutdown(client_fd, SHUT_RDWR);
+  close(client_fd);
 }
 
 int main() {
@@ -118,6 +64,7 @@ int main() {
   server_accept(server_fd);
 
   shutdown(server_fd, SHUT_RDWR);
+  close(server_fd);
 
   return 0;
 }
