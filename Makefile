@@ -1,5 +1,5 @@
 CC = gcc
-OBJ = common.o server.o
+OBJ = common.o file.o server.o
 
 all: program
 
@@ -12,8 +12,14 @@ server.o: server.c
 common.o: common.c
 	$(CC) -c common.c -o common.o 
 
+file.o: file.c
+	$(CC) -c file.c -o file.o 
+
 client: client.c
 	$(CC) -o client client.c
+
+test: test.c
+	$(CC) -o test test.c
 
 clean:
 	rm -f *.o
