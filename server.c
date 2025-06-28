@@ -1,6 +1,37 @@
 #include "common.h"
 #include "file.h"
-#include <unistd.h>
+
+/* receive a HTTP request */
+void receive_request(int client_fd) {
+  char buf[BUFSIZ];
+  int ret;
+
+  ret = read(client_fd, buf, BUFSIZ);
+  if (ret < 0)
+    error("ERROR reading request");
+
+  // if the header size if greater
+  // than 8Kb, send back an error code
+  // print the header
+  printf("\r\n%s", buf);
+
+  // read from client, parse the request string
+  /*bzero(buf, BUFSIZ);*/
+  /*while (pos < BUFSIZ - 1) {*/
+  /**/
+  /*  printf("\r\nread from client\r\n");*/
+  /**/
+  /*  ret = read(client_fd, &buf[pos], 1);*/
+  /*  if (ret < 0)*/
+  /*    error("ERROR reading from socket");*/
+  /*  if (buf[pos] == '\0') // newline*/
+  /*    break;*/
+  /*  ++pos;*/
+  /*}*/
+
+  // swap "index.html" with the actual file requested
+  serve_file(client_fd, "index.html");
+}
 
 /* Configure Server Socket */
 void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
@@ -30,8 +61,8 @@ void server_accept(int server_fd) {
   if (client_fd < 0)
     error("ERROR accepting connections");
 
-  // serve a HTML file to the clients that try to connect with the server
-  serve_file(client_fd, "index.html");
+  // accept the request and check for errors
+  receive_request(client_fd);
 
   // close the connection
   shutdown(client_fd, SHUT_RDWR);

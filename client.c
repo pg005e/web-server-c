@@ -1,5 +1,7 @@
 #include "common.h"
 
+char *GET = "GET / HTTP/1.1\r\n\r\n";
+
 int main() {
   int server_fd, ret;
   char buf[BUFSIZ];
@@ -21,13 +23,18 @@ int main() {
   if (ret < 0)
     error("ERROR connecting to socket");
 
+  // send HTTP request
+  ret = write(server_fd, GET, strlen(GET));
+  if (ret < 0)
+    error("ERROR sending request");
+
   // read block-wise because server can send files
   bzero(&buf, BUFSIZ);
   ret = read(server_fd, buf, BUFSIZ - 1);
   if (ret < 0)
     error("ERROR reading from socket");
 
-  printf("%s", buf);
+  printf("received:\r\n%s", buf);
 
   close(server_fd);
 
