@@ -1,36 +1,24 @@
 #include "common.h"
 #include "file.h"
+#include "httprequest.h"
 
 /* receive a HTTP request */
 void receive_request(int client_fd) {
-  char buf[BUFSIZ];
+  char request[BUFSIZ];
   int ret;
 
-  ret = read(client_fd, buf, BUFSIZ);
+  ret = read(client_fd, request, BUFSIZ);
   if (ret < 0)
     error("ERROR reading request");
 
   // if the header size if greater
   // than 8Kb, send back an error code
-  // print the header
-  printf("\r\n%s", buf);
+  // store the value returned by read
 
-  // read from client, parse the request string
-  /*bzero(buf, BUFSIZ);*/
-  /*while (pos < BUFSIZ - 1) {*/
-  /**/
-  /*  printf("\r\nread from client\r\n");*/
-  /**/
-  /*  ret = read(client_fd, &buf[pos], 1);*/
-  /*  if (ret < 0)*/
-  /*    error("ERROR reading from socket");*/
-  /*  if (buf[pos] == '\0') // newline*/
-  /*    break;*/
-  /*  ++pos;*/
-  /*}*/
+  // parse the request
+  HttpRequest req = parse_request(request);
 
-  // swap "index.html" with the actual file requested
-  serve_file(client_fd, "index.html");
+  serve_file(client_fd, "index.html", 140);
 }
 
 /* Configure Server Socket */

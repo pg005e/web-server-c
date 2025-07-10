@@ -1,3 +1,6 @@
+#ifndef FILE_SERVE_H
+#define FILE_SERVE_H
+
 #include "common.h"
 
 typedef struct {
@@ -10,4 +13,6 @@ typedef struct {
 FileInfo *read_file(const char *file_name);
 
 /* serve files one by one, one at a time */
-void serve_file(int client_fd, const char *file_name);
+void serve_file(int client_fd, const char *file_name, int content_length);
+
+#endif

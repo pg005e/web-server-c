@@ -1,3 +1,6 @@
+#ifndef COMMON_H
+#define COMMON_H
+
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdint.h>
@@ -14,3 +17,5 @@
 #define PORT 6969
 
 void error(const char *msg);
+
+#endif
