@@ -1,6 +1,39 @@
 #include "common.h"
 #include "file.h"
-#include <unistd.h>
+#include "httprequest.h"
+
+/* receive a HTTP request */
+void receive_request(int client_fd) {
+  char buffer[BUFSIZ + 1];
+  int total_read = 0;
+  int ret;
+
+  // copy the HTTP request to local buffer from kernel buffer
+  // check for length of request header (< 8Kb)
+  while (total_read < BUFSIZ) {
+    ret = read(client_fd, buffer + total_read, BUFSIZ - total_read);
+    if (ret < 0)
+      error("ERROR reading buffer");
+    if (ret == 0)
+      break;
+
+    total_read += ret;
+    buffer[total_read] = '\0';
+
+    if (strstr(buffer, "\r\n\r\n"))
+      break;
+  }
+
+  if (total_read >= BUFSIZ) {
+    printf("Header too large");
+    exit(1);
+  }
+
+  // parse the buffer
+  HttpRequest req = parse_request(buffer);
+
+  serve_file(client_fd, req);
+}
 
 /* Configure Server Socket */
 void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
@@ -30,8 +63,8 @@ void server_accept(int server_fd) {
   if (client_fd < 0)
     error("ERROR accepting connections");
 
-  // serve a HTML file to the clients that try to connect with the server
-  serve_file(client_fd, "index.html");
+  // accept the request and check for errors
+  receive_request(client_fd);
 
   // close the connection
   shutdown(client_fd, SHUT_RDWR);

@@ -1,5 +1,5 @@
 CC = gcc
-OBJ = common.o file.o server.o
+OBJ = common.o file.o server.o httprequest.o
 
 all: program
 
@@ -14,6 +14,9 @@ common.o: common.c
 
 file.o: file.c
 	$(CC) -c file.c -o file.o 
+
+httprequest.o: httprequest.c
+	$(CC) -c httprequest.c -o httprequest.o
 
 client: client.c
 	$(CC) -o client client.c
