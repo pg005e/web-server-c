@@ -4,21 +4,35 @@
 
 /* receive a HTTP request */
 void receive_request(int client_fd) {
-  char request[BUFSIZ];
+  char buffer[BUFSIZ + 1];
+  int total_read = 0;
   int ret;
 
-  ret = read(client_fd, request, BUFSIZ);
-  if (ret < 0)
-    error("ERROR reading request");
+  // copy the HTTP request to local buffer from kernel buffer
+  // check for length of request header (< 8Kb)
+  while (total_read < BUFSIZ) {
+    ret = read(client_fd, buffer + total_read, BUFSIZ - total_read);
+    if (ret < 0)
+      error("ERROR reading buffer");
+    if (ret == 0)
+      break;
 
-  // if the header size if greater
-  // than 8Kb, send back an error code
-  // store the value returned by read
+    total_read += ret;
+    buffer[total_read] = '\0';
 
-  // parse the request
-  HttpRequest req = parse_request(request);
+    if (strstr(buffer, "\r\n\r\n"))
+      break;
+  }
 
-  serve_file(client_fd, "index.html", 140);
+  if (total_read >= BUFSIZ) {
+    printf("Header too large");
+    exit(1);
+  }
+
+  // parse the buffer
+  HttpRequest req = parse_request(buffer);
+
+  serve_file(client_fd, req);
 }
 
 /* Configure Server Socket */

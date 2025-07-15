@@ -1,10 +1,14 @@
 #include "file.h"
-#include "common.h"
+#include "httprequest.h"
 #include <stdio.h>
 
-char *response_header = "HTTP/1.1 200 OK\r\n\r\n";
+void generate_response_header(HttpRequest req, char *response_header) {
+  strcpy(response_header, "HTTP/");
+  strcat(response_header, req.version);
+  strcat(response_header, " 200 OK\r\n\r\n");
+}
 
-FileInfo *read_file(const char *file_name) {
+FileInfo *read_file(const char *file_name, char *response_header) {
   FileInfo *f = malloc(sizeof(FileInfo));
 
   f->fp = fopen(file_name, "rb");
@@ -19,7 +23,6 @@ FileInfo *read_file(const char *file_name) {
   rewind(f->fp);
 
   ssize_t header_len = strlen(response_header);
-  f->fsize = ret + header_len;
 
   f->fsize = ret + header_len + 1;
 
@@ -43,12 +46,14 @@ FileInfo *read_file(const char *file_name) {
   return f;
 }
 
-void serve_file(int client_fd, const char *file_name, int content_length) {
-  FileInfo *f = read_file(file_name);
+void serve_file(int client_fd, HttpRequest req) {
+  char response_header[20];
+  generate_response_header(req, response_header);
 
+  FileInfo *f = read_file(req.resource, response_header);
   size_t ret = 0;
 
-  while (ret <= content_length) {
+  while (ret < f->fsize) {
     ret = write(client_fd, f->fbuffer, f->fsize);
 
     if (ret < 0) {

@@ -1,20 +1,12 @@
 #ifndef HTTP_REQUEST_H
 #define HTTP_REQUEST_H
 
-typedef enum {
-  GET,
-  POST,
-  PUT,
-  PATCH,
-  DELETE,
-} HttpMethod;
-
 typedef struct {
-  HttpMethod method;
+  char *method;
   char *resource;
-  float version;
-  char *body_payload;
+  char *version;
   int content_length;
+  char *body_payload;
 } HttpRequest;
 
 HttpRequest parse_request(char *request);
