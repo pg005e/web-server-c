@@ -1,4 +1,4 @@
 server
 client
-test
-test.c
+*.o
+.opencode/
