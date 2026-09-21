@@ -1,6 +1,7 @@
 #include "common.h"
 #include "file.h"
 #include "httprequest.h"
+#include <errno.h>
 
 /* receive a HTTP request */
 void receive_request(int client_fd) {
@@ -44,7 +45,7 @@ void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
   if (ret < 0)
     error("ERROR binding the socket");
 
-  // listen for connections, max 5 at a time
+  // listen for connections, max 5 at a time (TODO)
   ret = listen(*server_fd, 1);
   if (ret < 0)
     error("ERROR listening for connections");
@@ -52,23 +53,23 @@ void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
 
 /* Accept connections */
 void server_accept(int server_fd) {
-  char buf[BUFSIZ];
-  int ret, client_fd;
+  int client_fd;
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(client_addr);
 
-  // start accepting connections
-  client_fd =
-      accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-  if (client_fd < 0)
-    error("ERROR accepting connections");
+  while (1) {
+    client_fd =
+        accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+    if (client_fd < 0) {
+      if (errno == EINTR) continue;
+      error("ERROR accepting connections");
+    }
 
-  // accept the request and check for errors
-  receive_request(client_fd);
+    receive_request(client_fd);
 
-  // close the connection
-  shutdown(client_fd, SHUT_RDWR);
-  close(client_fd);
+    shutdown(client_fd, SHUT_RDWR);
+    close(client_fd);
+  }
 }
 
 int main() {
@@ -79,6 +80,7 @@ int main() {
   if (server_fd < 0)
     error("ERROR creating a socket");
 
+  // set options for the socket to have a reusable address immediately after a socket dies
   if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) <
       0) {
     error("setsockopt(SO_REUSEADDR) failed");
