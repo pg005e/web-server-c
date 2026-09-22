@@ -21,8 +21,5 @@ file.o: file.c
 httprequest.o: httprequest.c
 	$(CC) $(CFLAGS) -c httprequest.c -o httprequest.o
 
-client: client.c
-	$(CC) -o client client.c
-
 clean:
-	rm -f *.o
+	rm -f *.o server

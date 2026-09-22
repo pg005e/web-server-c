@@ -11,6 +11,8 @@ void match_request_headers(char *headers_bulk, HttpRequest *req) {
   char lineBuf[120];
   int counter = 1;
 
+  req->connection = NULL;
+
   while ((end = strstr(start, "\r\n")) != NULL) {
     int num_bytes = (int)(end - start);
     memcpy(lineBuf, start, num_bytes);
@@ -39,13 +41,20 @@ void match_request_headers(char *headers_bulk, HttpRequest *req) {
       if (!end) return;
       end = end + 1;
       req->version = strdup(end);
+    } else {
+      if (strstr(lineBuf, "Connection:")) {
+        end = strchr(lineBuf, ':');
+        end = end + 1;
+        req->connection = strdup(end);
+      } else if (strstr(lineBuf, "Content-Length:")) {
+        end = strchr(lineBuf, ':');
+        end = end + 1;
+        req->content_length = atoi(end);
+      } else if (strstr(lineBuf, "Host:")) {
+        // Host header is parsed but not stored
+      }
     }
 
-    if (!strcmp(req->method, "GET")) {
-      return;
-    }
-
-    memset(lineBuf, 0, sizeof lineBuf);
     ++counter;
   }
 
@@ -53,8 +62,7 @@ void match_request_headers(char *headers_bulk, HttpRequest *req) {
     if (strstr(start, "Content-Length")) {
       end = strchr(start, ':');
       end = end + 1;
-      int content_length = atoi(end);
-      req->content_length = content_length;
+      req->content_length = atoi(end);
     }
   }
 }

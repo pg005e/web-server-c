@@ -2,6 +2,22 @@
 #include "file.h"
 #include "httprequest.h"
 #include <errno.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#define MAX_CHILDREN 128
+
+static int active_children = 0;
+
+static void sigchld_handler(int sig) {
+  (void)sig;
+  int saved_errno = errno;
+  while (waitpid(-1, NULL, WNOHANG) > 0)
+    active_children--;
+  errno = saved_errno;
+}
 
 /* receive a HTTP request */
 void receive_request(int client_fd) {
@@ -9,31 +25,40 @@ void receive_request(int client_fd) {
   int total_read = 0;
   int ret;
 
-  // copy the HTTP request to local buffer from kernel buffer
-  // check for length of request header (< 8Kb)
-  while (total_read < BUFSIZ) {
-    ret = read(client_fd, buffer + total_read, BUFSIZ - total_read);
-    if (ret < 0)
-      error("ERROR reading buffer");
-    if (ret == 0)
+  while (1) {
+    total_read = 0;
+
+    while (total_read < BUFSIZ) {
+      ret = read(client_fd, buffer + total_read, BUFSIZ - total_read);
+      if (ret < 0)
+        error("ERROR reading buffer");
+      if (ret == 0)
+        break;
+
+      total_read += ret;
+      buffer[total_read] = '\0';
+
+      if (strstr(buffer, "\r\n\r\n"))
+        break;
+    }
+
+    if (total_read >= BUFSIZ || total_read == 0)
       break;
 
-    total_read += ret;
-    buffer[total_read] = '\0';
+    HttpRequest req = parse_request(buffer);
 
-    if (strstr(buffer, "\r\n\r\n"))
+    int keep_alive = req.connection && strstr(req.connection, "keep-alive");
+
+    serve_file(client_fd, req);
+
+    free(req.method);
+    free(req.resource);
+    free(req.version);
+    free(req.connection);
+
+    if (!keep_alive)
       break;
   }
-
-  if (total_read >= BUFSIZ) {
-    printf("Header too large");
-    exit(1);
-  }
-
-  // parse the buffer
-  HttpRequest req = parse_request(buffer);
-
-  serve_file(client_fd, req);
 }
 
 /* Configure Server Socket */
@@ -45,29 +70,52 @@ void server_init(const int *server_fd, const struct sockaddr_in *server_addr) {
   if (ret < 0)
     error("ERROR binding the socket");
 
-  // listen for connections, max 5 at a time (TODO)
-  ret = listen(*server_fd, 1);
+  ret = listen(*server_fd, 128);
   if (ret < 0)
     error("ERROR listening for connections");
 }
 
 /* Accept connections */
 void server_accept(int server_fd) {
-  int client_fd;
-  struct sockaddr_in client_addr;
-  socklen_t client_addr_len = sizeof(client_addr);
+  struct sigaction sa;
+  sa.sa_handler = sigchld_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+  sigaction(SIGCHLD, &sa, NULL);
 
   while (1) {
-    client_fd =
+    if (active_children >= MAX_CHILDREN) {
+      usleep(10000);
+      continue;
+    }
+
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_fd =
         accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
     if (client_fd < 0) {
+      if (errno == EMFILE || errno == ENFILE) {
+        usleep(10000);
+        continue;
+      }
       if (errno == EINTR) continue;
       error("ERROR accepting connections");
     }
 
-    receive_request(client_fd);
+    active_children++;
 
-    shutdown(client_fd, SHUT_RDWR);
+    pid_t pid = fork();
+    if (pid < 0) {
+      active_children--;
+      error("ERROR forking");
+    }
+    if (pid == 0) {
+      close(server_fd);
+      receive_request(client_fd);
+      shutdown(client_fd, SHUT_RDWR);
+      close(client_fd);
+      exit(0);
+    }
     close(client_fd);
   }
 }
