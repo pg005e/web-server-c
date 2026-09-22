@@ -37,11 +37,17 @@ char *sanitize_resource(const char *resource) {
   return full;
 }
 
-void generate_response_header(HttpRequest req, char *response_header) {
-  snprintf(response_header, 64, "HTTP/%s 200 OK\r\n\r\n", req.version);
+void generate_response_header(HttpRequest req, char *response_header, long file_size) {
+  snprintf(response_header, 128,
+    "HTTP/%s 200 OK\r\n"
+    "Content-Length: %ld\r\n"
+    "Content-Type: text/html\r\n"
+    "Connection: keep-alive\r\n"
+    "\r\n",
+    req.version, file_size);
 }
 
-FileInfo *read_file(const char *file_name, char *response_header) {
+FileInfo *read_file(const char *file_name, char *response_header, HttpRequest req) {
   FileInfo *f = malloc(sizeof(FileInfo));
   if (!f) return NULL;
 
@@ -54,20 +60,20 @@ FileInfo *read_file(const char *file_name, char *response_header) {
   if (ret < 0) { fclose(f->fp); free(f); return NULL; }
   rewind(f->fp);
 
+  generate_response_header(req, response_header, ret);
   ssize_t header_len = strlen(response_header);
 
-  f->fsize = ret + header_len + 1;
-
-  f->fbuffer = malloc(f->fsize);
+  f->fbuffer = malloc(ret + header_len);
   if (!f->fbuffer) { fclose(f->fp); free(f); return NULL; }
 
   memcpy(f->fbuffer, response_header, header_len);
 
   size_t read_size = fread(f->fbuffer + header_len, 1, ret, f->fp);
-  if (read_size <= 0) { fclose(f->fp); free(f->fbuffer); free(f); return NULL; }
-
-  f->fbuffer[header_len + read_size] = '\0';
   fclose(f->fp);
+
+  if (read_size <= 0) { free(f->fbuffer); free(f); return NULL; }
+
+  f->fsize = header_len + read_size;
   return f;
 }
 
@@ -86,10 +92,8 @@ void serve_file(int client_fd, HttpRequest req) {
     return;
   }
 
-  char response_header[64];
-  generate_response_header(req, response_header);
-
-  FileInfo *f = read_file(safe_path, response_header);
+  char response_header[128];
+  FileInfo *f = read_file(safe_path, response_header, req);
   size_t total_written = 0;
 
   if (f) {
