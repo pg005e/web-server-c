@@ -7,6 +7,7 @@ typedef struct {
   char *version;
   int content_length;
   char *body_payload;
+  char *connection;
 } HttpRequest;
 
 HttpRequest parse_request(char *request);

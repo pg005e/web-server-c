@@ -16,7 +16,7 @@ typedef struct {
 char *sanitize_resource(const char *resource);
 
 /* read the contents of a file */
-FileInfo *read_file(const char *file_name, char *response_header);
+FileInfo *read_file(const char *file_name, char *response_header, HttpRequest req);
 
 /* serve files one by one, one at a time */
 void serve_file(int client_fd, HttpRequest req);
