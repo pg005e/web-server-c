@@ -12,8 +12,17 @@ static int server_fd;
 static struct pollfd fds[MAX_CLIENTS];
 static int nfds = 1;
 
-/* receive a HTTP request */
-void receive_request(int client_fd) {
+static void drop_client(int i) {
+  close(fds[i].fd);
+  for (int j = i; j < nfds - 1; j++) {
+    fds[j] = fds[j + 1];
+  }
+  nfds--;
+  fds[nfds].fd = -1;
+}
+
+/* receive a HTTP request. returns 0 if the connection must be closed */
+int receive_request(int client_fd) {
   char buffer[BUFSIZ + 1];
   int total_read = 0;
   int ret;
@@ -22,9 +31,9 @@ void receive_request(int client_fd) {
     ret = read(client_fd, buffer + total_read, BUFSIZ - total_read);
     if (ret < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-      error("ERROR reading buffer");
     }
-    if (ret == 0) break;
+    if (ret == 0)
+      return 0;
 
     total_read += ret;
     buffer[total_read] = '\0';
@@ -34,7 +43,7 @@ void receive_request(int client_fd) {
   }
 
   if (total_read >= BUFSIZ || total_read == 0)
-    return;
+    return 0;
 
   HttpRequest req = parse_request(buffer);
 
@@ -47,20 +56,7 @@ void receive_request(int client_fd) {
   free(req.version);
   free(req.connection);
 
-  if (!keep_alive) {
-    close(client_fd);
-    for (int i = 1; i < nfds; i++) {
-      if (fds[i].fd == client_fd) {
-        fds[i].fd = -1;
-        nfds--;
-        for (int j = i; j < nfds; j++) {
-          fds[j] = fds[j + 1];
-        }
-        fds[nfds].fd = -1;
-        break;
-      }
-    }
-  }
+  return keep_alive ? 1 : 0;
 }
 
 /* Configure Server Socket */
@@ -111,18 +107,16 @@ void server_loop(void) {
     }
 
     for (int i = 1; i < nfds; i++) {
-      if (fds[i].revents & POLLIN) {
-        receive_request(fds[i].fd);
-      }
-    }
-
-    for (int i = 1; i < nfds; i++) {
-      if (fds[i].fd == -1) {
-        for (int j = i; j < nfds - 1; j++) {
-          fds[j] = fds[j + 1];
-        }
-        nfds--;
+      if (fds[i].revents & (POLLHUP | POLLERR)) {
+        drop_client(i);
         i--;
+        continue;
+      }
+      if (fds[i].revents & POLLIN) {
+        if (!receive_request(fds[i].fd)) {
+          drop_client(i);
+          i--;
+        }
       }
     }
   }
