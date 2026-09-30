@@ -8,6 +8,7 @@ typedef struct {
   int content_length;
   char *body_payload;
   char *connection;
+  int keep_alive;
 } HttpRequest;
 
 HttpRequest parse_request(char *request);
