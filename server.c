@@ -47,7 +47,7 @@ int receive_request(int client_fd) {
 
   HttpRequest req = parse_request(buffer);
 
-  int keep_alive = req.connection && strstr(req.connection, "keep-alive");
+  int keep_alive = req.keep_alive;
 
   serve_file(client_fd, req);
 
@@ -96,7 +96,12 @@ void server_loop(void) {
       struct sockaddr_in client_addr;
       socklen_t client_addr_len = sizeof(client_addr);
       int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-      if (client_fd >= 0 && nfds < MAX_CLIENTS) {
+
+      if (client_fd < 0) {
+        /* spurious wakeup, EINTR, or EMFILE: nothing to register */
+      } else if (nfds >= MAX_CLIENTS) {
+        close(client_fd);
+      } else {
         int flags = fcntl(client_fd, F_GETFL, 0);
         fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
         fds[nfds].fd = client_fd;

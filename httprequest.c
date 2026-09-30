@@ -73,17 +73,24 @@ HttpRequest parse_request(char *request) {
   const char *start = request;
   const char *end;
 
+  memset(&req, 0, sizeof req);
+
   end = strstr(request, header_delim);
-  if (!end) {
-    memset(&req, 0, sizeof req);
+  if (!end)
     return req;
-  }
-  memcpy(buffer, start, (int)(end - start));
-  buffer[(int)(end - start)] = '\0';
+
+  int head_len = (int)(end - start);
+  memcpy(buffer, start, head_len + 2);
+  buffer[head_len + 2] = '\0';
   start = end + 4;
 
   match_request_headers(buffer, &req);
   req.body_payload = (char *)start;
+
+  if (req.connection)
+    req.keep_alive = strcasestr(req.connection, "keep-alive") != NULL;
+  else
+    req.keep_alive = req.version && strcmp(req.version, "1.1") == 0;
 
   return req;
 }

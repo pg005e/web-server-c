@@ -42,9 +42,22 @@ void generate_response_header(HttpRequest req, char *response_header, long file_
     "HTTP/%s 200 OK\r\n"
     "Content-Length: %ld\r\n"
     "Content-Type: text/html\r\n"
-    "Connection: keep-alive\r\n"
+    "Connection: %s\r\n"
     "\r\n",
-    req.version, file_size);
+    req.version, file_size, req.keep_alive ? "keep-alive" : "close");
+}
+
+static void send_error(int client_fd, HttpRequest req, const char *status) {
+  char buf[128];
+  int n = snprintf(buf, sizeof buf,
+    "HTTP/%s %s\r\n"
+    "Content-Length: 0\r\n"
+    "Connection: %s\r\n"
+    "\r\n",
+    req.version, status, req.keep_alive ? "keep-alive" : "close");
+
+  if (n > 0)
+    write(client_fd, buf, (size_t)n);
 }
 
 FileInfo *read_file(const char *file_name, char *response_header, HttpRequest req) {
@@ -79,16 +92,13 @@ FileInfo *read_file(const char *file_name, char *response_header, HttpRequest re
 
 void serve_file(int client_fd, HttpRequest req) {
   if (!req.resource || !*req.resource) {
-    const char *err = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-    write(client_fd, err, strlen(err));
+    send_error(client_fd, req, "400 Bad Request");
     return;
   }
   char *safe_path = sanitize_resource(req.resource);
 
   if (!safe_path) {
-    // 400 Bad Request or 404 - send error response
-    const char *err = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-    write(client_fd, err, strlen(err));
+    send_error(client_fd, req, "400 Bad Request");
     return;
   }
 
@@ -112,8 +122,7 @@ void serve_file(int client_fd, HttpRequest req) {
     free(f);
   } else {
     // 404 Not Found - send error response
-    const char *err = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-    write(client_fd, err, strlen(err));
+    send_error(client_fd, req, "404 Not Found");
   }
 
   free(safe_path);
