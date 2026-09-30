@@ -1,9 +1,5 @@
+#include "common.h"
 #include "httprequest.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <unistd.h>
 
 void match_request_headers(char *headers_bulk, HttpRequest *req) {
   const char *start = headers_bulk;

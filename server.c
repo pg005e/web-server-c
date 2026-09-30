@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <unistd.h>
 
 #define MAX_CLIENTS 128
 

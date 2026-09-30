@@ -1,8 +1,5 @@
 #include "file.h"
 #include "httprequest.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <errno.h>
 
 char *sanitize_resource(const char *resource) {
